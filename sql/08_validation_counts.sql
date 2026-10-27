@@ -1,0 +1,33 @@
+-- =============================================================================
+-- 08_validation_counts.sql
+-- End-to-end row-count checks: STAGE -> DW dimensions -> SALES_FACT.
+-- =============================================================================
+
+USE DATABASE CHINOOK_DB;
+
+-- Stage table counts
+SELECT 'CUSTOMER' AS TBL, COUNT(*) AS CNT FROM STAGE.CUSTOMER
+UNION ALL SELECT 'ARTIST',  COUNT(*) FROM STAGE.ARTIST
+UNION ALL SELECT 'ALBUM',   COUNT(*) FROM STAGE.ALBUM
+UNION ALL SELECT 'INVOICE', COUNT(*) FROM STAGE.INVOICE;
+
+-- DW dimension counts
+SELECT 'DATE_DIM' AS TBL, COUNT(*) AS CNT FROM DW.DATE_DIM
+UNION ALL SELECT 'TIME_DIM',     COUNT(*) FROM DW.TIME_DIM
+UNION ALL SELECT 'CUSTOMER_DIM', COUNT(*) FROM DW.CUSTOMER_DIM
+UNION ALL SELECT 'ARTIST_DIM',   COUNT(*) FROM DW.ARTIST_DIM;
+
+-- Duplicate check: every query below should return 0
+SELECT 'STAGE.CUSTOMER dup ids' AS CHECK_NAME, COUNT(*) - COUNT(DISTINCT CustomerId) AS DUPES FROM STAGE.CUSTOMER
+UNION ALL SELECT 'STAGE.ARTIST dup ids',  COUNT(*) - COUNT(DISTINCT ArtistId)    FROM STAGE.ARTIST
+UNION ALL SELECT 'STAGE.INVOICE dup ids', COUNT(*) - COUNT(DISTINCT InvoiceId)   FROM STAGE.INVOICE
+UNION ALL SELECT 'CUSTOMER_DIM dup ids',  COUNT(*) - COUNT(DISTINCT CUSTOMER_ID) FROM DW.CUSTOMER_DIM
+UNION ALL SELECT 'ARTIST_DIM dup ids',    COUNT(*) - COUNT(DISTINCT ARTIST_ID)   FROM DW.ARTIST_DIM;
+
+-- Fact table: should equal the number of distinct invoices in STAGE
+SELECT
+    (SELECT COUNT(*) FROM DW.SALES_FACT)                     AS SALES_FACT_ROWS,
+    (SELECT COUNT(DISTINCT InvoiceId) FROM STAGE.INVOICE)    AS STAGE_INVOICES;
+
+-- Optional preview
+SELECT * FROM DW.SALES_FACT ORDER BY INVOICE_ID LIMIT 20;
