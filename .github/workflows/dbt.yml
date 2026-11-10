@@ -1,0 +1,41 @@
+name: dbt build
+
+# Runs every seed, model and test on a fresh DuckDB file.
+# Free: GitHub Actions minutes are unlimited for public repositories,
+# and DuckDB needs no account, server or credentials.
+
+on:
+  push:
+    branches: [main]
+    paths: ["dbt/**", ".github/workflows/dbt.yml"]
+  pull_request:
+    paths: ["dbt/**", ".github/workflows/dbt.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dbt-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: dbt
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: dbt/requirements.txt
+
+      - name: Install dbt
+        run: pip install -r requirements.txt
+
+      - name: Check connection
+        run: dbt debug --profiles-dir .
+
+      - name: Build seeds, models and tests
+        run: dbt build --profiles-dir .
