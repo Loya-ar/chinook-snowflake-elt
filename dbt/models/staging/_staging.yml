@@ -1,0 +1,91 @@
+version: 2
+
+# Staging: one model per raw table. Rename to snake_case, set types, trim text.
+# No joins and no business logic here; that lives in marts.
+
+models:
+  - name: stg_customers
+    description: One row per customer.
+    columns:
+      - name: customer_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+      - name: email
+        data_tests: [not_null]
+      - name: country
+        data_tests: [not_null]
+
+  - name: stg_invoices
+    description: One row per invoice (an order).
+    columns:
+      - name: invoice_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+      - name: customer_id
+        data_tests: [not_null]
+      - name: invoice_date
+        data_tests: [not_null]
+      - name: invoice_total
+        description: Invoice total in USD, as recorded on the invoice.
+        data_tests: [not_null]
+
+  - name: stg_invoice_lines
+    description: One row per invoice line (one track bought on one invoice).
+    columns:
+      - name: invoice_line_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+      - name: invoice_id
+        data_tests: [not_null]
+      - name: track_id
+        data_tests: [not_null]
+      - name: unit_price
+        data_tests: [not_null]
+      - name: quantity
+        data_tests: [not_null]
+
+  - name: stg_tracks
+    description: One row per track.
+    columns:
+      - name: track_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+      - name: album_id
+        data_tests: [not_null]
+      - name: media_type_id
+        data_tests: [not_null]
+      - name: genre_id
+        data_tests: [not_null]
+      - name: list_price
+        description: Catalogue price of the track in USD.
+        data_tests: [not_null]
+
+  - name: stg_albums
+    description: One row per album.
+    columns:
+      - name: album_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+      - name: artist_id
+        data_tests: [not_null]
+
+  - name: stg_artists
+    description: One row per artist.
+    columns:
+      - name: artist_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+
+  - name: stg_genres
+    description: One row per genre.
+    columns:
+      - name: genre_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+
+  - name: stg_media_types
+    description: One row per media type.
+    columns:
+      - name: media_type_id
+        description: Primary key.
+        data_tests: [unique, not_null]
