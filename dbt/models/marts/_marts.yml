@@ -1,0 +1,97 @@
+version: 2
+
+# Marts: a star schema for reporting. fct_sales_line is the fact table;
+# dim_customer, dim_track and dim_date describe it.
+
+models:
+  - name: fct_sales_line
+    description: One row per invoice line (one track sold on one invoice).
+    columns:
+      - name: invoice_line_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+      - name: invoice_id
+        data_tests: [not_null]
+      - name: customer_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customer')
+                field: customer_id
+      - name: track_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_track')
+                field: track_id
+      - name: invoice_date
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_day
+      - name: unit_price
+        description: Price charged per unit in USD.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [0.99, 1.99]
+                quote: false
+      - name: quantity
+        data_tests: [not_null]
+      - name: line_amount
+        description: unit_price * quantity, in USD.
+        data_tests: [not_null]
+
+  - name: dim_customer
+    description: One row per customer, with first and latest purchase dates.
+    columns:
+      - name: customer_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+      - name: country
+        data_tests: [not_null]
+      - name: invoice_count
+        description: Number of invoices the customer has placed.
+
+  - name: dim_track
+    description: One row per track, flattened with album, artist, genre and media type.
+    columns:
+      - name: track_id
+        description: Primary key.
+        data_tests: [unique, not_null]
+      - name: album_title
+        data_tests: [not_null]
+      - name: artist_name
+        data_tests: [not_null]
+      - name: genre_name
+        data_tests: [not_null]
+      - name: media_type_name
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values:
+                  - AAC audio file
+                  - MPEG audio file
+                  - Protected AAC audio file
+                  - Protected MPEG-4 video file
+                  - Purchased AAC audio file
+
+  - name: dim_date
+    description: One row per calendar day for every year that has an invoice.
+    columns:
+      - name: date_day
+        description: Primary key.
+        data_tests: [unique, not_null]
+      - name: day_of_week
+        description: ISO day of week, 1 = Monday and 7 = Sunday.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4, 5, 6, 7]
+                quote: false
