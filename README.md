@@ -1,5 +1,7 @@
 # Chinook OLTP → Snowflake Data Warehouse
 
+[![dbt build](https://github.com/Loya-ar/chinook-snowflake-elt/actions/workflows/dbt.yml/badge.svg)](https://github.com/Loya-ar/chinook-snowflake-elt/actions/workflows/dbt.yml)
+
 An end-to-end ELT pipeline that moves the **Chinook** music-store database from **Azure SQL** into a **Snowflake** star schema, orchestrated with **Azure Data Factory (ADF)**.
 
 ```
@@ -7,8 +9,11 @@ Azure SQL DB ──(ADF Copy)──► Azure Blob (Parquet) ──(ADF Copy)─�
    Chinook                     snappy-compressed                   raw landing tables                 dims + SALES_FACT
 ```
 
+The repo also has a **[dbt version](#dbt-version-runs-locally-free)** of the transformation layer. It builds a tested star schema on DuckDB, runs on a laptop with no cloud account, and is rebuilt by GitHub Actions on every push.
+
 ## Contents
 
+- [dbt version (runs locally, free)](#dbt-version-runs-locally-free)
 - [Tech stack](#tech-stack)
 - [Repository layout](#repository-layout)
 - [Data model](#data-model)
@@ -17,6 +22,46 @@ Azure SQL DB ──(ADF Copy)──► Azure Blob (Parquet) ──(ADF Copy)─�
 - [ADF pipelines and data flow](#adf-pipelines-and-data-flow)
 - [Validation](#validation)
 - [Screenshots](#screenshots)
+
+## dbt version (runs locally, free)
+
+The [`dbt/`](dbt/) folder rebuilds the warehouse with **dbt Core** on **DuckDB**, a local, file-based database. It needs no Snowflake or Azure account and no credentials. The raw Chinook tables are loaded as dbt seeds, and every model is tested.
+
+```
+seeds (raw) ──► staging (8 views) ──► marts (star schema, 4 tables)
+ 8 Chinook       rename, type,          fct_sales_line + dim_customer,
+ CSV tables      trim; one per table    dim_track, dim_date
+```
+
+| Layer | Models | What happens |
+|---|---|---|
+| `raw` | 8 seeds | Chinook tables loaded from CSV. Postal codes and phone numbers stay text, so leading zeros survive. |
+| `staging` | `stg_customers`, `stg_invoices`, `stg_invoice_lines`, `stg_tracks`, `stg_albums`, `stg_artists`, `stg_genres`, `stg_media_types` | One view per raw table: snake_case names, explicit types, trimmed text. No joins. |
+| `marts` | `fct_sales_line` | Fact table, one row per invoice line (2,240 rows). |
+| | `dim_customer` | One row per customer (59), with first and latest purchase dates. |
+| | `dim_track` | One row per track (3,503), flattened with album, artist, genre and media type. |
+| | `dim_date` | One row per day for 2021–2025 (1,826). |
+
+The fact table here is at **invoice-line** grain, which is finer than the Snowflake `SALES_FACT` (one row per invoice). That makes revenue by track, genre or artist possible.
+
+**Tests (57 in total):**
+
+- `unique` and `not_null` on every primary key
+- `relationships`: every sale points to an existing customer, track and date
+- `accepted_values`: unit prices, media types and day-of-week numbers
+- A singular test, [`assert_line_amounts_match_invoice_totals`](dbt/tests/assert_line_amounts_match_invoice_totals.sql), that fails if any invoice's line items do not add up to its total, to the cent
+
+**Run it:**
+
+```bash
+cd dbt
+pip install -r requirements.txt
+dbt build --profiles-dir .
+```
+
+`dbt build` loads the seeds, builds the models and runs every test in dependency order. The [`dbt build`](.github/workflows/dbt.yml) workflow does the same on every push and pull request that touches `dbt/`.
+
+The sample data is the newer [Chinook](https://github.com/lerocha/chinook-database) release, with invoices from 2021-01-01 to 2025-12-22 and $2,328.60 in total sales. See [`dbt/seeds/README.md`](dbt/seeds/README.md) for its license.
 
 ## Tech stack
 
@@ -27,12 +72,19 @@ Azure SQL DB ──(ADF Copy)──► Azure Blob (Parquet) ──(ADF Copy)─�
 | Lake / staging | Azure Blob Storage (Parquet, snappy) |
 | Secrets | Azure Key Vault |
 | Warehouse | Snowflake (`CHINOOK_DB`, warehouse `COMPUTE_WH`) |
+| Transformation (dbt version) | dbt Core + DuckDB, tested in GitHub Actions |
 
 ## Repository layout
 
 ```
 .
 ├── README.md
+├── .github/workflows/dbt.yml        # CI: dbt build on push and pull request
+├── dbt/                             # dbt Core + DuckDB version (see above)
+│   ├── seeds/                       # Raw Chinook tables as CSV
+│   ├── models/staging/              # stg_* views, one per raw table
+│   ├── models/marts/                # fct_sales_line and dimensions
+│   └── tests/                       # Singular data tests
 ├── sql/
 │   ├── 01_create_stage_schema.sql   # STAGE landing tables (optional if ADF creates them)
 │   ├── 02_create_dw_schema.sql      # DW dimensions, fact table and key sequences
