@@ -1,0 +1,41 @@
+name: chinook
+version: "1.0.0"
+config-version: 2
+profile: chinook
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  chinook:
+    staging:
+      +materialized: view
+      +schema: staging
+    marts:
+      +materialized: table
+      +schema: marts
+
+seeds:
+  chinook:
+    +schema: raw
+    # Postal codes and phone numbers keep their leading zeros as text (e.g. Oslo "0171").
+    raw_customer:
+      +column_types:
+        PostalCode: varchar
+        Phone: varchar
+        Fax: varchar
+    raw_invoice:
+      +column_types:
+        InvoiceDate: timestamp
+        BillingPostalCode: varchar
+        Total: decimal(10, 2)
+    raw_invoice_line:
+      +column_types:
+        UnitPrice: decimal(10, 2)
+    raw_track:
+      +column_types:
+        UnitPrice: decimal(10, 2)

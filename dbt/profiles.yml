@@ -1,0 +1,9 @@
+# Local DuckDB connection: no account or credentials needed.
+# Run dbt from this folder with:  dbt build --profiles-dir .
+chinook:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: chinook.duckdb
+      threads: 4
