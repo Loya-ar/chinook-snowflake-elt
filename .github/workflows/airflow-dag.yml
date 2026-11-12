@@ -1,0 +1,43 @@
+name: Airflow DAG check
+
+# Loads the DAG with Airflow's DagBag (no import errors) and checks the task
+# order, schedule and retries. It does not run dbt; dbt.yml does that.
+
+on:
+  push:
+    branches: [main]
+    paths: ["airflow/**", ".github/workflows/airflow-dag.yml"]
+  pull_request:
+    paths: ["airflow/**", ".github/workflows/airflow-dag.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dag-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: airflow
+    env:
+      AIRFLOW_HOME: ${{ github.workspace }}/.airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Airflow (with its official constraints) and pytest
+        run: >
+          pip install -r requirements-test.txt
+          --constraint https://raw.githubusercontent.com/apache/airflow/constraints-3.3.2/constraints-3.11.txt
+
+      - name: Create Airflow's local metadata DB
+        run: airflow db migrate
+
+      - name: Test the DAG
+        run: pytest -v tests

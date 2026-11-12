@@ -1,0 +1,5 @@
+# Airflow runtime output
+logs/
+alerts/
+__pycache__/
+.pytest_cache/

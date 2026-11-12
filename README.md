@@ -1,6 +1,7 @@
 # Chinook OLTP → Snowflake Data Warehouse
 
 [![dbt build](https://github.com/Loya-ar/chinook-snowflake-elt/actions/workflows/dbt.yml/badge.svg)](https://github.com/Loya-ar/chinook-snowflake-elt/actions/workflows/dbt.yml)
+[![Airflow DAG check](https://github.com/Loya-ar/chinook-snowflake-elt/actions/workflows/airflow-dag.yml/badge.svg)](https://github.com/Loya-ar/chinook-snowflake-elt/actions/workflows/airflow-dag.yml)
 
 An end-to-end ELT pipeline that moves the **Chinook** music-store database from **Azure SQL** into a **Snowflake** star schema, orchestrated with **Azure Data Factory (ADF)**.
 
@@ -14,6 +15,7 @@ The repo also has a **[dbt version](#dbt-version-runs-locally-free)** of the tra
 ## Contents
 
 - [dbt version (runs locally, free)](#dbt-version-runs-locally-free)
+- [Airflow orchestration (local)](#airflow-orchestration-local)
 - [Tech stack](#tech-stack)
 - [Repository layout](#repository-layout)
 - [Data model](#data-model)
@@ -63,6 +65,22 @@ dbt build --profiles-dir .
 
 The sample data is the newer [Chinook](https://github.com/lerocha/chinook-database) release, with invoices from 2021-01-01 to 2025-12-22 and $2,328.60 in total sales. See [`dbt/seeds/README.md`](dbt/seeds/README.md) for its license.
 
+## Airflow orchestration (local)
+
+The [`airflow/`](airflow/) folder runs the dbt project as a daily **Apache Airflow 3.3** DAG, in Docker on a laptop:
+
+```
+dbt_seed ──► dbt_run ──► dbt_test ──► check_row_count ──► publish_success
+```
+
+- `@daily` schedule with `catchup=False`; every task retries twice, 5 minutes apart
+- **Quality gate:** if `dbt_test` fails, the row-count check and `publish_success` never start (`upstream_failed`)
+- **Row-count check:** `fct_sales_line` must have one row per invoice line in the seed (2,240)
+- **Failure alert:** after the last retry fails, an `on_failure_callback` writes a JSON record (task, run date, error) to a log file. It can also post to a Slack or Discord webhook, but none is configured.
+- **CI:** the [`Airflow DAG check`](.github/workflows/airflow-dag.yml) workflow loads the DAG with `DagBag` in pytest and asserts no import errors, the task order, the schedule and the retries
+
+[`airflow/README.md`](airflow/README.md) explains how to run it and shows screenshots of a green run and a deliberate failure. It is local only: there is no cloud deployment or managed Airflow.
+
 ## Tech stack
 
 | Layer | Service |
@@ -73,6 +91,7 @@ The sample data is the newer [Chinook](https://github.com/lerocha/chinook-databa
 | Secrets | Azure Key Vault |
 | Warehouse | Snowflake (`CHINOOK_DB`, warehouse `COMPUTE_WH`) |
 | Transformation (dbt version) | dbt Core + DuckDB, tested in GitHub Actions |
+| Orchestration (dbt version) | Apache Airflow 3.3 in Docker, run locally |
 
 ## Repository layout
 
@@ -80,6 +99,8 @@ The sample data is the newer [Chinook](https://github.com/lerocha/chinook-databa
 .
 ├── README.md
 ├── .github/workflows/dbt.yml        # CI: dbt build on push and pull request
+├── .github/workflows/airflow-dag.yml  # CI: DAG import and task-order test
+├── airflow/                         # Local Airflow DAG that runs the dbt project (see above)
 ├── dbt/                             # dbt Core + DuckDB version (see above)
 │   ├── seeds/                       # Raw Chinook tables as CSV
 │   ├── models/staging/              # stg_* views, one per raw table
